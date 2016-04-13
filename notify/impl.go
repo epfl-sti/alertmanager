@@ -136,6 +136,10 @@ func Build(confs []*config.Receiver, tmpl *template.Template) map[string]Fanout 
 			n := NewHipchat(c, tmpl)
 			add(i, n, filter(n, c))
 		}
+		for i, c := range nc.TelegramConfigs {
+			n := NewTelegram(c, tmpl)
+			add(i, n, filter(n, c))
+		}
 		for i, c := range nc.PushoverConfigs {
 			n := NewPushover(c, tmpl)
 			add(i, n, filter(n, c))
@@ -574,6 +578,79 @@ func (n *Hipchat) Notify(ctx context.Context, as ...*types.Alert) error {
 	}
 
 	req := &hipchatReq{
+		From:          tmplText(n.conf.From),
+		Notify:        n.conf.Notify,
+		Message:       msg,
+		MessageFormat: n.conf.MessageFormat,
+		Color:         tmplText(n.conf.Color),
+	}
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(req); err != nil {
+		return err
+	}
+
+	resp, err := ctxhttp.Post(ctx, http.DefaultClient, url, contentTypeJSON, &buf)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		return fmt.Errorf("unexpected status code %v", resp.StatusCode)
+	}
+
+	return nil
+}
+
+
+// Telegram implements a Notifier for Telegram notifications.
+type Telegram struct {
+	conf *config.TelegramConfig
+	tmpl *template.Template
+}
+
+// NewTelegram returns a new Telegram notification handler.
+func NewTelegram(conf *config.TelegramConfig, tmpl *template.Template) *Telegram {
+	return &Telegram{
+		conf: conf,
+		tmpl: tmpl,
+	}
+}
+
+func (*Telegram) name() string { return "telegram" }
+
+type telegramReq struct {
+	From          string `json:"from"`
+	Notify        bool   `json:"notify"`
+	Message       string `json:"message"`
+	MessageFormat string `json:"message_format"`
+	Color         string `json:"color"`
+}
+
+// Notify implements the Notifier interface.
+func (n *Telegram) Notify(ctx context.Context, as ...*types.Alert) error {
+	var err error
+	var msg string
+	var (
+		data     = n.tmpl.Data(receiver(ctx), groupLabels(ctx), as...)
+		tmplText = tmplText(n.tmpl, data, &err)
+		tmplHTML = tmplHTML(n.tmpl, data, &err)
+		//https://api.telegram.org/bot784324329:EETRNJU3jQEGWQdjNv3llb4bnDSDREGuuuL/sendMessage?chat_id=1234567&text=Hello
+		url      = fmt.Sprintf("%s/%s:%s/sendMessage?chat_id=%s&text=Hello", n.conf.APIURL, n.conf.BotID, n.conf.AuthToken, n.conf.ChatID)
+	)
+
+	if n.conf.MessageFormat == "html" {
+		msg = tmplHTML(n.conf.Message)
+	} else {
+		msg = tmplText(n.conf.Message)
+	}
+
+	req := &telegramReq{
 		From:          tmplText(n.conf.From),
 		Notify:        n.conf.Notify,
 		Message:       msg,

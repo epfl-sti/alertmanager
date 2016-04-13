@@ -82,6 +82,18 @@ var (
 		MessageFormat: `text`,
 	}
 
+	// DefaultTelegramConfig defines default values for Telegram configurations.
+	DefaultTelegramConfig = TelegramConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: false,
+		},
+		Color:         `{{ if eq .Status "firing" }}red{{ else }}green{{ end }}`,
+		From:          `{{ template "telegram.default.from" . }}`,
+		Notify:        false,
+		Message:       `{{ template "telegram.default.message" . }}`,
+		MessageFormat: `text`,
+	}
+
 	// DefaultOpsGenieConfig defines default values for OpsGenie configurations.
 	DefaultOpsGenieConfig = OpsGenieConfig{
 		NotifierConfig: NotifierConfig{
@@ -247,6 +259,41 @@ func (c *HipchatConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return checkOverflow(c.XXX, "hipchat config")
+}
+
+// TelegramConfig configures notifications via Telegram.
+type TelegramConfig struct {
+	NotifierConfig `yaml:",inline"`
+
+	APIURL        string `yaml:"api_url"`
+	AuthToken     Secret `yaml:"auth_token"`
+	BotID         string `yaml:"bot_id"`
+	ChatID        string `yaml:"chat_id"`
+	From          string `yaml:"from"`
+	Notify        bool   `yaml:"notify"`
+	Message       string `yaml:"message"`
+	MessageFormat string `yaml:"message_format"`
+	Color         string `yaml:"color"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultTelegramConfig
+	type plain TelegramConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.BotID == "" {
+		return fmt.Errorf("missing bot id in Telegram config")
+	}
+	if c.ChatID == "" {
+		return fmt.Errorf("missing chat id in Telegram config")
+	}
+
+	return checkOverflow(c.XXX, "telegram config")
 }
 
 // WebhookConfig configures notifications via a generic webhook.

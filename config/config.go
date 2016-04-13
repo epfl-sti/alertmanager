@@ -205,6 +205,24 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ogc.APIHost += "/"
 			}
 		}
+		// Telegram config
+		for _, tc := range rcv.TelegramConfigs {
+			if tc.APIURL == "" {
+				if c.Global.TelegramURL == "" {
+					return fmt.Errorf("no global Telegram API URL set")
+				}
+				tc.APIURL = c.Global.TelegramURL
+			}
+			if !strings.HasSuffix(tc.APIURL, "/") {
+				tc.APIURL += "/"
+			}
+			if tc.AuthToken == "" {
+				if c.Global.TelegramAuthToken == "" {
+					return fmt.Errorf("no global Telegram Auth Token set")
+				}
+				tc.AuthToken = c.Global.TelegramAuthToken
+			}
+		}
 		names[rcv.Name] = struct{}{}
 	}
 
@@ -246,6 +264,7 @@ var DefaultGlobalConfig = GlobalConfig{
 	PagerdutyURL:    "https://events.pagerduty.com/generic/2010-04-15/create_event.json",
 	HipchatURL:      "https://api.hipchat.com/",
 	OpsGenieAPIHost: "https://api.opsgenie.com/",
+	TelegramURL:		 "https://api.telegram.org/",
 }
 
 // GlobalConfig defines configuration parameters that are valid globally
@@ -255,13 +274,15 @@ type GlobalConfig struct {
 	// if it has not been updated.
 	ResolveTimeout model.Duration `yaml:"resolve_timeout"`
 
-	SMTPFrom         string `yaml:"smtp_from"`
-	SMTPSmarthost    string `yaml:"smtp_smarthost"`
-	SlackAPIURL      Secret `yaml:"slack_api_url"`
-	PagerdutyURL     string `yaml:"pagerduty_url"`
-	HipchatURL       string `yaml:"hipchat_url"`
-	HipchatAuthToken Secret `yaml:"hipchat_auth_token"`
-	OpsGenieAPIHost  string `yaml:"opsgenie_api_host"`
+	SMTPFrom          string `yaml:"smtp_from"`
+	SMTPSmarthost     string `yaml:"smtp_smarthost"`
+	SlackAPIURL       Secret `yaml:"slack_api_url"`
+	PagerdutyURL      string `yaml:"pagerduty_url"`
+	HipchatURL        string `yaml:"hipchat_url"`
+	HipchatAuthToken  Secret `yaml:"hipchat_auth_token"`
+	OpsGenieAPIHost   string `yaml:"opsgenie_api_host"`
+	TelegramURL       string `yaml:"telegram_url"`
+	TelegramAuthToken Secret `yaml:"telegram_auth_token"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -390,6 +411,7 @@ type Receiver struct {
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty"`
+	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
